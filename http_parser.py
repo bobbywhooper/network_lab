@@ -78,8 +78,11 @@ def parse_headers(header):
         except UnicodeDecodeError as error:
             raise ValueError("HTTP header contains invalid bytes") from error
 
-        if not decoded_name:
-            raise ValueError("HTTP header name cannot be empty")
+        if not decoded_name or any(
+            char not in "!#$%&'*+-.^_`|~" and not char.isalnum()
+            for char in decoded_name
+        ):
+            raise ValueError("HTTP header name contains invalid characters")
 
         # Preserve repeated headers instead of silently losing all but one.
         if decoded_name in headers:
@@ -92,6 +95,10 @@ def parse_headers(header):
 
 def receive_content_length(sock, body, content_length, max_body_bytes=MAX_BODY_BYTES):
     """Read exactly Content-Length bytes or fail on truncation."""
+    if not isinstance(content_length, int) or isinstance(content_length, bool):
+        raise ValueError("Content-Length must be an integer")
+    if not isinstance(max_body_bytes, int) or isinstance(max_body_bytes, bool) or max_body_bytes < 0:
+        raise ValueError("max_body_bytes must be a non-negative integer")
     if content_length < 0:
         raise ValueError("Content-Length cannot be negative")
     if content_length > max_body_bytes:
@@ -238,8 +245,10 @@ def parse_url(url):
 
 def fetch(url, max_redirects=5, timeout=5):
     """Fetch an HTTP URL and follow redirects, rejecting HTTPS redirects."""
-    if max_redirects < 0:
-        raise ValueError("max_redirects cannot be negative")
+    if not isinstance(max_redirects, int) or isinstance(max_redirects, bool) or max_redirects < 0:
+        raise ValueError("max_redirects must be a non-negative integer")
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        raise ValueError("timeout must be a positive number")
 
     redirects = 0
     current_url = url
