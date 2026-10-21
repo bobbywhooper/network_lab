@@ -37,7 +37,7 @@ python service_scout.py example.com --ports 22,80,443 --json results.json
 
 ### `http_parser.py` — Manual HTTP Client
 
-A low-level HTTP client implemented using Python sockets.
+A low-level HTTP client implemented using Python sockets. It supports plain HTTP only; HTTPS is intentionally unsupported.
 
 Concepts explored:
 - TCP socket connections and HTTP requests.
@@ -54,16 +54,19 @@ python http_parser.py
 
 The current example requests `http://example.com/`.
 
-### `dns_packet.py` — DNS Packet Construction
+### `dns_packet.py` — DNS Query and Response Parsing
 
-A learning exercise that constructs a DNS query manually and sends it over UDP.
+A testable DNS client that builds query packets, sends them over UDP, and parses response records.
 
 Concepts explored:
 - DNS message headers and flags.
 - Binary encoding with `struct`.
 - Domain-name label encoding.
 - DNS question and resource-record fields.
-- Parsing selected fields from a DNS response.
+- Parsing DNS names, including compression pointers.
+- Checking transaction IDs and validating packet boundaries.
+
+This remains an educational subset of DNS, not a complete production resolver.
 
 Run:
 
@@ -73,18 +76,24 @@ python dns_packet.py
 
 The current implementation queries `www.example.com` using Cloudflare's public DNS resolver.
 
-### `pcap_analyzer.py` — Network Event Analysis
+### `network_event_analyzer.py` — Network Event Analysis
 
 A small experiment using simulated connection-event data to explore:
 - Dictionaries and sets for tracking network activity.
 - Counting connections and unique destinations.
 - Identifying possible scanning patterns.
 
-This script currently analyses hard-coded sample events; it does not yet read or decode PCAP files.
+This script currently analyzes hard-coded sample events; it does not read or decode PCAP files. Its current detection counts unique destinations across the entire input, not within a time window.
 
-### `tcp_tets.py` — TCP and HTTP Experiments
+## Tests
 
-An experimental script containing TCP port-scanning and manual HTTP-client code. These experiments overlap with functionality in other files and are candidates for cleanup or consolidation.
+Run the unit tests from the repository root with:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The tests cover DNS packet encoding/parsing, HTTP parsing and framing, network-event analysis, and port-specification validation. They do not require internet access.
 
 ## Requirements
 
