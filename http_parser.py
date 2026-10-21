@@ -188,14 +188,24 @@ def http_get(host, port=80, path="/", timeout=5):
         headers = parse_headers(raw_header)
 
         transfer_encoding = headers.get("transfer-encoding", "").lower()
-        if "chunked" in transfer_encoding:
+        has_transfer_encoding = bool(transfer_encoding)
+        has_content_length = "content-length" in headers
+
+        if has_transfer_encoding and has_content_length:
+            raise ValueError("Response cannot contain both Transfer-Encoding and Content-Length")
+
+        if has_transfer_encoding:
+            codings = [coding.strip() for coding in transfer_encoding.split(",")]
+            if codings != ["chunked"]:
+                raise ValueError("Only the chunked Transfer-Encoding is supported")
             complete_body = receive_chunked_body(sock, body)
-        elif "content-length" in headers:
-            try:
-                content_length = int(headers["content-length"])
-            except ValueError as error:
-                raise ValueError("Invalid Content-Length header") from error
-            complete_body = receive_content_length(sock, body, content_length)
+        elif has_content_length:
+            raw_length = headers["content-length"]
+            if not raw_length.isascii() or not raw_length.isdecimal():
+                raise ValueError("Invalid Content-Length header")
+            complete_body = receive_content_length(sock, body, int(raw_length))
+        elif status_code in (204, 304) or 100 <= status_code < 200:
+            complete_body = b""
         else:
             complete_body = bytearray(body)
             if len(complete_body) > MAX_BODY_BYTES:
