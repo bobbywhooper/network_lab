@@ -90,13 +90,13 @@ python pcap_analyzer.py capture.pcap
 Flag destination bursts within a five-second window and save JSON:
 
 ```bash
-python pcap_analyzer.py capture.pcap --threshold 5 --window 5 --json report.json
+python pcap_analyzer.py capture.pcap --threshold 5 --port-threshold 10 --window 5 --json report.json
 ```
 
 Scope and limitations:
 - Supports classic PCAP files with Ethernet link-layer headers, optional VLAN tags, and IPv4 TCP/UDP packets.
 - Does not support PCAPNG, IPv6, IP fragment reassembly, TCP stream reassembly, or application-layer decoding.
-- The destination-count heuristic is only a basic signal; it is not proof of scanning or malicious activity.
+- The analyzer can flag sources contacting many destination IPs (horizontal-scan heuristic) or many destination ports (vertical-scan heuristic). These simple thresholds are only signals, not proof of scanning or malicious activity.
 - Only analyze captures you are authorized to inspect.
 
 ### `network_event_analyzer.py` — Network Event Analysis

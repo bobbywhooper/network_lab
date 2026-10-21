@@ -40,6 +40,36 @@ class AnalyzeEventsTests(unittest.TestCase):
             [],
         )
 
+    def test_detects_many_ports_on_one_destination(self):
+        events = [
+            {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "dst_port": port}
+            for port in (21, 22, 23, 80)
+        ]
+        report = analyze_events(events, threshold=5, port_threshold=4)
+        self.assertEqual(len(report["flagged_sources"]), 1)
+        self.assertEqual(
+            report["flagged_sources"][0]["reason"],
+            "many_unique_destination_ports",
+        )
+        self.assertEqual(
+            report["sources"]["10.0.0.1"]["unique_destination_count"],
+            1,
+        )
+
+    def test_detects_port_scan_inside_time_window(self):
+        events = [
+            {"time": timestamp, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "dst_port": port}
+            for timestamp, port in ((1, 22), (2, 23), (3, 25), (20, 80))
+        ]
+        report = analyze_events(events, port_threshold=3, window_seconds=5)
+        finding = report["flagged_sources"][0]
+        self.assertEqual(finding["reason"], "many_unique_destination_ports")
+        self.assertEqual((finding["window_start"], finding["window_end"]), (1, 3))
+
+    def test_rejects_invalid_destination_port(self):
+        with self.assertRaisesRegex(ValueError, "dst_port"):
+            analyze_events([{"src_ip": "a", "dst_ip": "b", "dst_port": 70000}])
+
     def test_window_requires_timestamp(self):
         with self.assertRaisesRegex(ValueError, "time"):
             analyze_events([{"src_ip": "a", "dst_ip": "b"}], window_seconds=5)
