@@ -1,8 +1,7 @@
-"""Read classic PCAP files and extract basic Ethernet/IPv4 TCP/UDP metadata.
+"""Read classic PCAP files and extract basic Ethernet IP TCP/UDP metadata.
 
-This intentionally small reader uses only the standard library. It does not
-reassemble IP fragments or TCP streams, and it supports Ethernet link layers
-with IPv4 packets only.
+This standard-library reader supports IPv4 and basic IPv6 packets. It does not
+reassemble IP fragments, parse IPv6 extension headers, or reassemble TCP streams.
 """
 
 import ipaddress
