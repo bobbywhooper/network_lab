@@ -42,6 +42,14 @@ class HttpParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_headers(b"HTTP/1.1 200 OK\r\nMissingColon")
 
+    def test_rejects_invalid_header_name(self):
+        with self.assertRaises(ValueError):
+            parse_headers(b"HTTP/1.1 200 OK\\r\\nBad Name: value")
+
+    def test_parse_url_rejects_invalid_port(self):
+        with self.assertRaises(ValueError):
+            parse_url("http://example.com:99999/")
+
     def test_parse_url_preserves_query(self):
         self.assertEqual(
             parse_url("http://example.com/path?q=hello")["target"],
@@ -55,6 +63,11 @@ class HttpParserTests(unittest.TestCase):
     def test_content_length_reads_only_expected_bytes(self):
         sock = FakeSocket([b"def"])
         self.assertEqual(receive_content_length(sock, b"abc", 6), b"abcdef")
+
+    def test_content_length_rejects_non_integer_length(self):
+        for length in (1.5, True, "2"):
+            with self.subTest(length=length), self.assertRaises(ValueError):
+                receive_content_length(FakeSocket([]), b"", length)
 
     def test_content_length_detects_truncation(self):
         with self.assertRaises(ConnectionError):
