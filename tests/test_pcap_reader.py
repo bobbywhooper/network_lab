@@ -116,7 +116,7 @@ class PcapReaderTests(unittest.TestCase):
             parse_pcap(data)
 
     def test_ignores_non_ipv4_frames(self):
-        frame = bytes.fromhex("00112233445566778899aabb86dd") + bytes(40)
+        frame = bytes.fromhex("00112233445566778899aabb0806") + bytes(28)
         self.assertEqual(parse_pcap(make_pcap(frame)), [])
 
     def test_rejects_truncated_tcp_header(self):
