@@ -111,7 +111,10 @@ def _parse_ethernet_ipv4(packet, timestamp):
         "tcp_ack": bool(tcp_flags is not None and tcp_flags & 0x10),
         "tcp_rst": bool(tcp_flags is not None and tcp_flags & 0x04),
         "tcp_fin": bool(tcp_flags is not None and tcp_flags & 0x01),
-        "payload_hex": packet[transport_start + (tcp_header_length if transport == "TCP" else 8):transport_start + (tcp_header_length if transport == "TCP" else udp_length)].hex(),
+        "payload_hex": packet[
+            transport_start + (tcp_header_length if transport == "TCP" else 8):
+            ip_payload_end if transport == "TCP" else transport_start + udp_length
+        ].hex(),
         "ip_length": total_length,
     }
 
