@@ -54,7 +54,7 @@ class PcapReaderTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], 100.25)
 
     def test_parses_udp_metadata(self):
-        events = parse_pcap(make_pcap(make_udp_frame(payload=b"\\x01\\x02")))
+        events = parse_pcap(make_pcap(make_udp_frame(payload=b"\x01\x02")))
         self.assertEqual(events[0]["protocol"], "UDP")
         self.assertEqual(events[0]["src_port"], 53000)
         self.assertEqual(events[0]["dst_port"], 53)
