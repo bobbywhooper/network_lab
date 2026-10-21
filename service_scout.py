@@ -82,6 +82,11 @@ def scan_ports(ip, ports, workers=50, timeout=1):
     Scan multiple ports concurrently.
     """
 
+    if workers < 1:
+        raise ValueError("workers must be at least 1")
+    if timeout <= 0:
+        raise ValueError("timeout must be greater than zero")
+
     results = []
     futures = []
 
@@ -435,18 +440,27 @@ def parse_ports(port_spec):
     into a sorted list of port numbers.
     """
 
+    if not port_spec or not port_spec.strip():
+        raise ValueError("Port specification cannot be empty")
+
     ports = set()
 
     for section in port_spec.split(","):
 
         section = section.strip()
+        if not section:
+            raise ValueError("Port specification contains an empty item")
 
         if "-" in section:
+            if section.count("-") != 1:
+                raise ValueError(f"Invalid port range: {section}")
 
             start_text, end_text = section.split("-", 1)
-
-            start = int(start_text)
-            end = int(end_text)
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError as error:
+                raise ValueError(f"Invalid port range: {section}") from error
 
             if start > end:
                 raise ValueError(
@@ -457,7 +471,10 @@ def parse_ports(port_spec):
                 ports.add(port)
 
         else:
-            ports.add(int(section))
+            try:
+                ports.add(int(section))
+            except ValueError as error:
+                raise ValueError(f"Invalid port: {section}") from error
 
     for port in ports:
 
@@ -609,6 +626,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
+    if args.timeout <= 0:
+        parser.error("--timeout must be greater than zero")
 
     try:
         ports = parse_ports(args.ports)
