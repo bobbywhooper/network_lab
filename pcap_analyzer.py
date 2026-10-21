@@ -105,7 +105,7 @@ def main():
     if args.json_file:
         try:
             with open(args.json_file, "w", encoding="utf-8") as output:
-                output.write(rendered_report + "\\n")
+                output.write(rendered_report + "\n")
         except OSError as error:
             parser.error(f"Could not write JSON report: {error}")
 
