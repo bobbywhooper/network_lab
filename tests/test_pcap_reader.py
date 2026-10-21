@@ -8,7 +8,7 @@ from pcap_reader import parse_pcap, read_pcap
 
 def make_tcp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=12345, dst_port=80, payload=b"hi"):
     ethernet = bytes.fromhex("00112233445566778899aabb0800")
-    tcp = struct.pack("!HHIIHHHH", src_port, dst_port, 1, 0, (5 << 12) | 0x18, 4096, 0, 0)
+    tcp = struct.pack("!HHIIHHHH", src_port, dst_port, 1, 0, (5 << 12) | 0x02, 4096, 0, 0)
     ip_payload = tcp + payload
     ip_header = struct.pack(
         "!BBHHHBBH4s4s",
@@ -16,6 +16,17 @@ def make_tcp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=12345, dst_port=80, 
         bytes(map(int, src.split("."))), bytes(map(int, dst.split("."))),
     )
     return ethernet + ip_header + ip_payload
+
+
+def make_udp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=53000, dst_port=53, payload=b"test", fragment_field=0):
+    ethernet = bytes.fromhex("00112233445566778899aabb0800")
+    udp = struct.pack("!HHHH", src_port, dst_port, 8 + len(payload), 0) + payload
+    ip_header = struct.pack(
+        "!BBHHHBBH4s4s",
+        0x45, 0, 20 + len(udp), 1, fragment_field, 64, 17, 0,
+        bytes(map(int, src.split("."))), bytes(map(int, dst.split("."))),
+    )
+    return ethernet + ip_header + udp
 
 
 def make_pcap(packet, seconds=100, fraction=250000):
@@ -36,8 +47,22 @@ class PcapReaderTests(unittest.TestCase):
         self.assertEqual(events[0]["src_port"], 12345)
         self.assertEqual(events[0]["dst_port"], 80)
         self.assertEqual(events[0]["protocol"], "TCP")
+        self.assertTrue(events[0]["tcp_syn"])
+        self.assertFalse(events[0]["tcp_ack"])
+        self.assertEqual(events[0]["payload_hex"], b"hi".hex())
         self.assertEqual(events[0]["payload_length"], 2)
         self.assertEqual(events[0]["time"], 100.25)
+
+    def test_parses_udp_metadata(self):
+        events = parse_pcap(make_pcap(make_udp_frame(payload=b"\x01\x02")))
+        self.assertEqual(events[0]["protocol"], "UDP")
+        self.assertEqual(events[0]["src_port"], 53000)
+        self.assertEqual(events[0]["dst_port"], 53)
+        self.assertEqual(events[0]["payload_hex"], "0102")
+
+    def test_skips_fragmented_ipv4_packets_without_reassembly(self):
+        events = parse_pcap(make_pcap(make_udp_frame(fragment_field=0x2000)))
+        self.assertEqual(events, [])
 
     def test_reads_capture_from_disk(self):
         with tempfile.TemporaryDirectory() as folder:
