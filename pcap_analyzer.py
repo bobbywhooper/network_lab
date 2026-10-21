@@ -17,6 +17,8 @@ def main():
                         help="Unique destinations needed to flag a source")
     parser.add_argument("--window", type=float,
                         help="Optional sliding time window in seconds")
+    parser.add_argument("--port-threshold", type=int,
+                        help="Flag sources contacting this many unique destination ports")
     parser.add_argument("--json", dest="json_file",
                         help="Optional path to save the report as JSON")
     args = parser.parse_args()
@@ -25,6 +27,8 @@ def main():
         parser.error("--threshold must be at least 1")
     if args.window is not None and args.window <= 0:
         parser.error("--window must be greater than zero")
+    if args.port_threshold is not None and args.port_threshold < 1:
+        parser.error("--port-threshold must be at least 1")
 
     try:
         events = read_pcap(args.capture)
@@ -32,6 +36,7 @@ def main():
             events,
             threshold=args.threshold,
             window_seconds=args.window,
+            port_threshold=args.port_threshold,
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))
