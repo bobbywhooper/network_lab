@@ -1,6 +1,6 @@
 import unittest
 
-from service_scout import parse_ports, scan_ports
+from service_scout import parse_ports, scan_port, scan_ports
 
 
 class ParsePortsTests(unittest.TestCase):
@@ -41,6 +41,11 @@ class ScanPortsValidationTests(unittest.TestCase):
         for timeout in (0, -1, "1", True):
             with self.subTest(timeout=timeout), self.assertRaises(ValueError):
                 scan_ports("127.0.0.1", [], timeout=timeout)
+
+    def test_single_port_scan_rejects_invalid_inputs(self):
+        for ip, port, timeout in (("", 80, 1), ("127.0.0.1", 0, 1), ("127.0.0.1", 80, 0)):
+            with self.subTest(ip=ip, port=port, timeout=timeout), self.assertRaises(ValueError):
+                scan_port(ip, port, timeout)
 
     def test_rejects_invalid_port_values_before_scanning(self):
         for ports in ([0], [65536], [80.5], [True], "80"):
