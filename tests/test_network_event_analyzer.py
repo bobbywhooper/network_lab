@@ -52,6 +52,10 @@ class AnalyzeEventsTests(unittest.TestCase):
             with self.subTest(window=window), self.assertRaises(ValueError):
                 analyze_events([], window_seconds=window)
 
+    def test_empty_events_returns_empty_report(self):
+        self.assertEqual(analyze_events([])["sources"], {})
+        self.assertEqual(analyze_events([])["flagged_sources"], [])
+
     def test_missing_event_field_has_clear_error(self):
         with self.assertRaisesRegex(ValueError, "dst_ip"):
             analyze_events([{"src_ip": "10.0.0.1"}])
