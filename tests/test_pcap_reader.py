@@ -36,6 +36,9 @@ class PcapReaderTests(unittest.TestCase):
         self.assertEqual(events[0]["src_port"], 12345)
         self.assertEqual(events[0]["dst_port"], 80)
         self.assertEqual(events[0]["protocol"], "TCP")
+        self.assertTrue(events[0]["tcp_syn"])
+        self.assertFalse(events[0]["tcp_ack"])
+        self.assertEqual(events[0]["payload_hex"], b"hi".hex())
         self.assertEqual(events[0]["payload_length"], 2)
         self.assertEqual(events[0]["time"], 100.25)
 
