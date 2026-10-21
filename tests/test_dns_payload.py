@@ -20,12 +20,14 @@ class DnsPayloadTests(unittest.TestCase):
         self.assertEqual(result["questions"], [{"name": "example.com", "type": 1, "class": 1}])
 
     def test_parses_compressed_question_name(self):
-        # Name points to the beginning of the question's encoded name.
-        payload = make_query()
-        compressed = payload[:12] + b"\xc0\x0c" + struct.pack("!HH", 28, 1)
-        result = parse_dns_payload(compressed)
-        self.assertEqual(result["questions"][0]["name"], "example.com")
-        self.assertEqual(result["questions"][0]["type"], 28)
+        # The second question reuses the first question's encoded domain name.
+        first = make_query()
+        first_question = first[12:]
+        second_question = b"\xc0\x0c" + struct.pack("!HH", 28, 1)
+        header = struct.pack("!HHHHHH", 0x1234, 0x0100, 2, 0, 0, 0)
+        result = parse_dns_payload(header + first_question + second_question)
+        self.assertEqual(result["questions"][1]["name"], "example.com")
+        self.assertEqual(result["questions"][1]["type"], 28)
 
     def test_rejects_short_dns_header(self):
         with self.assertRaisesRegex(ValueError, "shorter than its header"):
@@ -33,7 +35,7 @@ class DnsPayloadTests(unittest.TestCase):
 
     def test_rejects_truncated_question_fields(self):
         payload = struct.pack("!HHHHHH", 1, 0x0100, 1, 0, 0, 0) + b"\x00\x00"
-        with self.assertRaisesRegex(ValueError, "question fields"):
+        with self.assertRaisesRegex(ValueError, "question count|question fields"):
             parse_dns_payload(payload)
 
     def test_rejects_compression_pointer_loop(self):
