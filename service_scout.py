@@ -27,6 +27,13 @@ def scan_port(ip, port, timeout=1):
     Returns structured information about the connection attempt.
     """
 
+    if not isinstance(ip, str) or not ip.strip():
+        raise ValueError("IP address must be a non-empty string")
+    if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+        raise ValueError("Port must be an integer between 1 and 65535")
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        raise ValueError("Timeout must be a positive number")
+
     start = time.perf_counter()
 
     try:

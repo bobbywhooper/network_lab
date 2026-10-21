@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 
 from http_parser import (
+    http_get,
     parse_headers,
     parse_status_line,
     parse_url,
@@ -19,8 +21,36 @@ class FakeSocket:
         chunk = self.chunks.pop(0)
         return chunk[:amount]
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def sendall(self, data):
+        self.sent = data
+
 
 class HttpParserTests(unittest.TestCase):
+    def test_rejects_response_with_both_transfer_encoding_and_content_length(self):
+        wire = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"Content-Length: 4\r\n\r\n"
+        )
+        with patch("http_parser.socket.create_connection", return_value=FakeSocket([wire])):
+            with self.assertRaisesRegex(ValueError, "both Transfer-Encoding and Content-Length"):
+                http_get("example.com")
+
+    def test_rejects_unsupported_transfer_encoding_chain(self):
+        wire = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n"
+        with patch("http_parser.socket.create_connection", return_value=FakeSocket([wire])):
+            with self.assertRaisesRegex(ValueError, "Only the chunked"):
+                http_get("example.com")
+
     def test_parse_status_line(self):
         self.assertEqual(
             parse_status_line(b"HTTP/1.1 200 OK\r\nContent-Length: 0"),
