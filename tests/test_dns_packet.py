@@ -15,7 +15,10 @@ class DnsPacketTests(unittest.TestCase):
         packet, transaction_id = build_query("example.com", transaction_id=0x1234)
 
         self.assertEqual(transaction_id, 0x1234)
-        self.assertEqual(struct.unpack("!HHHHHH", packet[:12]), (0x1234, 0x0100, 1, 0, 0, 0))
+        self.assertEqual(
+            struct.unpack("!HHHHHH", packet[:12]),
+            (0x1234, 0x0100, 1, 0, 0, 0),
+        )
         self.assertTrue(packet.endswith(struct.pack("!HH", 1, 1)))
 
     def test_rejects_invalid_domain_label(self):
@@ -28,13 +31,13 @@ class DnsPacketTests(unittest.TestCase):
 
     def test_parses_compressed_a_answer_and_checks_id(self):
         transaction_id = 0x4321
-        flags = 0x8180  # Response, recursion desired/available, no error.
+        flags = 0x8180
         header = struct.pack("!HHHHHH", transaction_id, flags, 1, 1, 0, 0)
         question = encode_name("example.com") + struct.pack("!HH", 1, 1)
         answer = (
             b"\xc0\x0c"
             + struct.pack("!HHIH", 1, 1, 300, 4)
-            + b"\x93\x184\x34"
+            + bytes([147, 24, 52, 52])
         )
         packet = header + question + answer
 
@@ -50,6 +53,11 @@ class DnsPacketTests(unittest.TestCase):
     def test_decode_name_rejects_pointer_outside_packet(self):
         with self.assertRaises(ValueError):
             decode_name(b"\xc0\x10", 0)
+
+    def test_rejects_query_packet_as_response(self):
+        packet, _ = build_query("example.com", transaction_id=1)
+        with self.assertRaises(ValueError):
+            parse_response(packet, expected_transaction_id=1)
 
 
 if __name__ == "__main__":

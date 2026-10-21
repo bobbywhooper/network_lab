@@ -10,22 +10,30 @@ from collections import defaultdict
 def analyze_events(events, threshold=5):
     """Summarize connection activity and flag possible destination scanning.
 
-    Args:
-        events: Iterable of dictionaries containing src_ip, dst_ip, and dst_port.
-        threshold: Minimum number of unique destination IPs to flag a source.
-
-    Returns:
-        A dictionary containing per-source counts and a list of flagged sources.
+    Each event must contain src_ip and dst_ip fields. Other fields, such as
+    time and dst_port, may be present but are not used yet.
     """
-    if threshold < 1:
-        raise ValueError("threshold must be at least 1")
+    if not isinstance(threshold, int) or isinstance(threshold, bool) or threshold < 1:
+        raise ValueError("threshold must be a positive integer")
 
     connection_counts = defaultdict(int)
     destinations = defaultdict(set)
 
-    for event in events:
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise ValueError(f"Event at index {index} must be a dictionary")
+
+        missing = {"src_ip", "dst_ip"} - event.keys()
+        if missing:
+            fields = ", ".join(sorted(missing))
+            raise ValueError(f"Event at index {index} is missing required field(s): {fields}")
+
         src_ip = event["src_ip"]
         dst_ip = event["dst_ip"]
+        if not isinstance(src_ip, str) or not src_ip.strip():
+            raise ValueError(f"Event at index {index} has an invalid src_ip")
+        if not isinstance(dst_ip, str) or not dst_ip.strip():
+            raise ValueError(f"Event at index {index} has an invalid dst_ip")
 
         connection_counts[src_ip] += 1
         destinations[src_ip].add(dst_ip)
@@ -48,14 +56,11 @@ def analyze_events(events, threshold=5):
                 }
             )
 
-    return {
-        "sources": sources,
-        "flagged_sources": flagged_sources,
-    }
+    return {"sources": sources, "flagged_sources": flagged_sources}
 
 
 def main():
-    # Illustrative data only; timestamps are not yet used for time-window analysis.
+    # Illustrative data only; timestamps are not used for time-window analysis.
     events = [
         {"time": 1, "src_ip": "10.0.0.50", "dst_ip": "10.0.0.10", "dst_port": 22},
         {"time": 2, "src_ip": "10.0.0.50", "dst_ip": "10.0.0.11", "dst_port": 22},
