@@ -1,3 +1,4 @@
+import ipaddress
 import struct
 import tempfile
 import unittest
@@ -36,8 +37,8 @@ def make_ipv6_frame(src="2001:db8::1", dst="2001:db8::2", next_header=6, payload
     ipv6_header = struct.pack(
         "!IHBB16s16s",
         (6 << 28), len(payload), next_header, 64,
-        __import__("ipaddress").IPv6Address(src).packed,
-        __import__("ipaddress").IPv6Address(dst).packed,
+        ipaddress.IPv6Address(src).packed,
+        ipaddress.IPv6Address(dst).packed,
     )
     return ethernet + ipv6_header + payload
 
