@@ -6,6 +6,7 @@ from collections import Counter
 
 from network_event_analyzer import analyze_events
 from pcap_reader import read_pcap
+from dns_payload import parse_dns_payload
 
 
 def main():
@@ -32,8 +33,28 @@ def main():
 
     try:
         events = read_pcap(args.capture)
+        dns_messages = []
+        for event in events:
+            if event["protocol"] == "UDP" and event["src_port"] in (53, 5353) or (
+                event["protocol"] == "UDP" and event["dst_port"] in (53, 5353)
+            ):
+                try:
+                    dns = parse_dns_payload(bytes.fromhex(event["payload_hex"]))
+                except ValueError as error:
+                    event["dns_parse_error"] = str(error)
+                else:
+                    event["dns"] = dns
+                    dns_messages.append(dns)
+
+        # For TCP, count initial SYN packets as connection attempts, not replies
+        # or subsequent packets. UDP has no handshake, so UDP events remain candidates.
+        scan_events = [
+            event for event in events
+            if event["protocol"] == "UDP"
+            or (event["protocol"] == "TCP" and event["tcp_syn"] and not event["tcp_ack"])
+        ]
         report = analyze_events(
-            events,
+            scan_events,
             threshold=args.threshold,
             window_seconds=args.window,
             port_threshold=args.port_threshold,
@@ -43,6 +64,15 @@ def main():
 
     report["capture"] = args.capture
     report["packet_count"] = len(events)
+    report["scan_candidate_count"] = len(scan_events)
+    report["dns_message_count"] = len(dns_messages)
+    report["dns_parse_error_count"] = sum("dns_parse_error" in event for event in events)
+    report["dns_questions"] = [
+        {"time": event["time"], "src_ip": event["src_ip"], "dst_ip": event["dst_ip"],
+         "questions": event["dns"]["questions"], "is_response": event["dns"]["is_response"],
+         "rcode": event["dns"]["rcode"]}
+        for event in events if "dns" in event
+    ]
     report["protocol_counts"] = dict(Counter(event["protocol"] for event in events))
     report["top_destination_ports"] = dict(
         Counter(event["dst_port"] for event in events).most_common(10)
