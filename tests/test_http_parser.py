@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch
 
-from http_parser import http_get, (
+from http_parser import (
+    http_get,
     parse_headers,
     parse_status_line,
     parse_url,
