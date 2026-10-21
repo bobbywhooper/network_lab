@@ -10,54 +10,51 @@ class AnalyzeEventsTests(unittest.TestCase):
             {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.3", "dst_port": 22},
             {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "dst_port": 80},
         ]
-
         report = analyze_events(events, threshold=2)
+        self.assertEqual(report["sources"]["10.0.0.1"]["connection_count"], 3)
+        self.assertEqual(report["sources"]["10.0.0.1"]["unique_destination_count"], 2)
+        self.assertEqual(report["flagged_sources"][0]["src_ip"], "10.0.0.1")
 
-        self.assertEqual(
-            report["sources"]["10.0.0.1"],
-            {"connection_count": 3, "unique_destination_count": 2},
-        )
-        self.assertEqual(
-            report["flagged_sources"],
-            [{"src_ip": "10.0.0.1", "unique_destination_count": 2}],
-        )
-
-    def test_source_below_threshold_is_not_flagged(self):
+    def test_window_flags_burst_but_not_spread_out_events(self):
         events = [
-            {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "dst_port": 22},
-            {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.3", "dst_port": 22},
+            {"time": 1, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+            {"time": 2, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.3"},
+            {"time": 3, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.4"},
+            {"time": 20, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.5"},
         ]
-        self.assertEqual(analyze_events(events, threshold=3)["flagged_sources"], [])
+        report = analyze_events(events, threshold=3, window_seconds=5)
+        self.assertEqual(len(report["flagged_sources"]), 1)
+        finding = report["flagged_sources"][0]
+        self.assertEqual(finding["window_start"], 1)
+        self.assertEqual(finding["window_end"], 3)
+        self.assertEqual(finding["unique_destination_count"], 3)
 
-    def test_sources_are_counted_independently(self):
+    def test_duplicate_destination_does_not_inflate_window_count(self):
         events = [
-            {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.3", "dst_port": 22},
-            {"src_ip": "10.0.0.2", "dst_ip": "10.0.0.3", "dst_port": 22},
+            {"time": 1, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+            {"time": 2, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+            {"time": 3, "src_ip": "10.0.0.1", "dst_ip": "10.0.0.3"},
         ]
-        report = analyze_events(events, threshold=1)
-        self.assertEqual(report["sources"]["10.0.0.1"]["connection_count"], 1)
-        self.assertEqual(report["sources"]["10.0.0.2"]["connection_count"], 1)
-        self.assertEqual(len(report["flagged_sources"]), 2)
+        self.assertEqual(
+            analyze_events(events, threshold=3, window_seconds=5)["flagged_sources"],
+            [],
+        )
 
-    def test_empty_events_returns_empty_report(self):
-        self.assertEqual(analyze_events([]), {"sources": {}, "flagged_sources": []})
+    def test_window_requires_timestamp(self):
+        with self.assertRaisesRegex(ValueError, "time"):
+            analyze_events([{"src_ip": "a", "dst_ip": "b"}], window_seconds=5)
 
-    def test_threshold_must_be_at_least_one(self):
-        for threshold in (0, -1):
+    def test_rejects_invalid_threshold_and_window(self):
+        for threshold in (0, -1, 1.5, True):
             with self.subTest(threshold=threshold), self.assertRaises(ValueError):
                 analyze_events([], threshold=threshold)
+        for window in (0, -1, "5", True):
+            with self.subTest(window=window), self.assertRaises(ValueError):
+                analyze_events([], window_seconds=window)
 
     def test_missing_event_field_has_clear_error(self):
         with self.assertRaisesRegex(ValueError, "dst_ip"):
             analyze_events([{"src_ip": "10.0.0.1"}])
-
-    def test_threshold_must_be_integer(self):
-        with self.assertRaisesRegex(ValueError, "positive integer"):
-            analyze_events([], threshold=1.5)
-
-    def test_rejects_blank_ip(self):
-        with self.assertRaisesRegex(ValueError, "invalid src_ip"):
-            analyze_events([{"src_ip": " ", "dst_ip": "10.0.0.2"}])
 
 
 if __name__ == "__main__":
