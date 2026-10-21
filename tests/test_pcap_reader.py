@@ -8,7 +8,7 @@ from pcap_reader import parse_pcap, read_pcap
 
 def make_tcp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=12345, dst_port=80, payload=b"hi"):
     ethernet = bytes.fromhex("00112233445566778899aabb0800")
-    tcp = struct.pack("!HHIIHHHH", src_port, dst_port, 1, 0, (5 << 12) | 0x18, 4096, 0, 0)
+    tcp = struct.pack("!HHIIHHHH", src_port, dst_port, 1, 0, (5 << 12) | 0x02, 4096, 0, 0)
     ip_payload = tcp + payload
     ip_header = struct.pack(
         "!BBHHHBBH4s4s",
