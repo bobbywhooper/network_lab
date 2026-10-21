@@ -11,7 +11,7 @@ from dns_payload import parse_dns_payload
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Summarize TCP/UDP IPv4 traffic from a classic Ethernet PCAP"
+        description="Summarize TCP/UDP traffic from a classic Ethernet PCAP"
     )
     parser.add_argument("capture", help="Path to a classic .pcap file")
     parser.add_argument("--threshold", type=int, default=5,
