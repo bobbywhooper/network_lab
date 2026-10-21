@@ -108,49 +108,50 @@ def receive_content_length(sock, body, content_length, max_body_bytes=MAX_BODY_B
 
 
 def receive_chunked_body(sock, body, max_body_bytes=MAX_BODY_BYTES):
-    """Decode chunked transfer coding, including the terminating trailer block."""
+    """Decode chunked transfer coding and validate the terminating trailers."""
+    if max_body_bytes < 0:
+        raise ValueError("max_body_bytes cannot be negative")
+
     buffer = bytearray(body)
     result = bytearray()
 
-    def read_until(delimiter, description):
+    def read_until(delimiter, description, limit):
         while delimiter not in buffer:
-            buffer.extend(_recv_more(sock))
-            if len(buffer) > max_body_bytes + MAX_HEADER_BYTES:
+            if len(buffer) > limit:
                 raise ValueError(f"HTTP {description} exceeds configured size limit")
+            buffer.extend(_recv_more(sock, min(4096, limit + 1 - len(buffer))))
         before, _, after = buffer.partition(delimiter)
+        if len(before) > limit:
+            raise ValueError(f"HTTP {description} exceeds configured size limit")
         buffer[:] = after
         return bytes(before)
 
     while True:
-        size_line = read_until(b"\r\n", "chunk-size line")
+        size_line = read_until(b"\r\n", "chunk-size line", 1024)
         size_text = size_line.split(b";", 1)[0].strip()
-        try:
-            chunk_size = int(size_text, 16)
-        except ValueError as error:
-            raise ValueError("Malformed HTTP chunk size") from error
-
-        if chunk_size < 0:
-            raise ValueError("HTTP chunk size cannot be negative")
+        if not size_text or any(byte not in b"0123456789abcdefABCDEF" for byte in size_text):
+            raise ValueError("Malformed HTTP chunk size")
+        chunk_size = int(size_text, 16)
 
         if chunk_size == 0:
-            # Last chunk is followed by zero or more trailer headers and a blank line.
-            trailer_block = read_until(b"\r\n\r\n", "chunk trailers") if not buffer.startswith(b"\r\n") else b""
-            if trailer_block and trailer_block.strip():
-                parse_headers(b"HTTP/1.1 200 OK\r\n" + trailer_block)
-            elif buffer.startswith(b"\r\n"):
+            if buffer.startswith(b"\r\n"):
                 del buffer[:2]
+                return bytes(result)
+
+            trailer_block = read_until(b"\r\n\r\n", "chunk trailers", MAX_HEADER_BYTES)
+            if trailer_block:
+                parse_headers(b"HTTP/1.1 200 OK\r\n" + trailer_block)
             return bytes(result)
 
         if len(result) + chunk_size > max_body_bytes:
             raise ValueError("HTTP body exceeds configured size limit")
 
         while len(buffer) < chunk_size + 2:
-            buffer.extend(_recv_more(sock))
+            buffer.extend(_recv_more(sock, min(4096, chunk_size + 2 - len(buffer))))
 
-        chunk = bytes(buffer[:chunk_size])
         if buffer[chunk_size:chunk_size + 2] != b"\r\n":
             raise ValueError("Malformed HTTP chunk terminator")
-        result.extend(chunk)
+        result.extend(buffer[:chunk_size])
         del buffer[:chunk_size + 2]
 
 

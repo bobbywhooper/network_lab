@@ -83,7 +83,7 @@ A small experiment using simulated connection-event data to explore:
 - Counting connections and unique destinations.
 - Identifying possible scanning patterns.
 
-This script currently analyzes hard-coded sample events; it does not read or decode PCAP files. Its current detection counts unique destinations across the entire input, not within a time window.
+This script currently analyzes hard-coded sample events; it does not read or decode PCAP files. It can count unique destinations across the full input or flag unique-destination bursts within a configurable time window. Window mode requires numeric event timestamps.
 
 ## Tests
 
