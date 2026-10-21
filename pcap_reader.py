@@ -207,9 +207,119 @@ def _parse_ethernet_ipv4(packet, timestamp):
     }
 
 
+def _parse_pcapng_stream(capture):
+    """Parse basic PCAPNG Section Header, Interface, and Enhanced Packet blocks."""
+    first = capture.read(12)
+    if len(first) < 12 or first[:4] != b"\\x0a\\x0d\\x0d\\x0a":
+        raise ValueError("Invalid PCAPNG section header")
+
+    byte_order_magic = first[8:12]
+    if byte_order_magic == b"\\x4d\\x3c\\x2b\\x1a":
+        byte_order = "<"
+    elif byte_order_magic == b"\\x1a\\x2b\\x3c\\x4d":
+        byte_order = ">"
+    else:
+        raise ValueError("Invalid PCAPNG byte-order magic")
+
+    block_length = struct.unpack(byte_order + "I", first[4:8])[0]
+    if block_length < 28 or block_length % 4:
+        raise ValueError("Invalid PCAPNG section header length")
+    remainder = capture.read(block_length - len(first))
+    if len(remainder) != block_length - len(first):
+        raise ValueError("Truncated PCAPNG section header")
+    if struct.unpack(byte_order + "I", remainder[-4:])[0] != block_length:
+        raise ValueError("PCAPNG block lengths do not match")
+
+    interfaces = []
+    events = []
+    timestamp = 0.0
+
+    while True:
+        prefix = capture.read(8)
+        if not prefix:
+            break
+        if len(prefix) != 8:
+            raise ValueError("Truncated PCAPNG block header")
+        block_type, block_length = struct.unpack(byte_order + "II", prefix)
+        if block_length < 12 or block_length % 4:
+            raise ValueError("Invalid PCAPNG block length")
+        body_length = block_length - 12
+        body_and_trailer = capture.read(body_length + 4)
+        if len(body_and_trailer) != body_length + 4:
+            raise ValueError("Truncated PCAPNG block")
+        if struct.unpack(byte_order + "I", body_and_trailer[-4:])[0] != block_length:
+            raise ValueError("PCAPNG block lengths do not match")
+        body = body_and_trailer[:-4]
+
+        if block_type == 0x0A0D0D0A:
+            # New section: read its byte-order magic from the block body.
+            if len(body) < 16:
+                raise ValueError("Truncated PCAPNG section header")
+            bom = body[4:8]
+            if bom == b"\\x4d\\x3c\\x2b\\x1a":
+                byte_order = "<"
+            elif bom == b"\\x1a\\x2b\\x3c\\x4d":
+                byte_order = ">"
+            else:
+                raise ValueError("Invalid PCAPNG byte-order magic")
+            interfaces = []
+        elif block_type == 1:  # Interface Description Block
+            if len(body) < 8:
+                raise ValueError("Truncated PCAPNG interface block")
+            link_type = struct.unpack(byte_order + "H", body[:2])[0]
+            snaplen = struct.unpack(byte_order + "I", body[4:8])[0]
+            timestamp_resolution = 1_000_000
+            option_offset = 8
+            while option_offset + 4 <= len(body):
+                code, length = struct.unpack(byte_order + "HH", body[option_offset:option_offset + 4])
+                option_offset += 4
+                if code == 0:
+                    break
+                if option_offset + length > len(body):
+                    raise ValueError("Invalid PCAPNG interface option")
+                value = body[option_offset:option_offset + length]
+                if code == 9 and length == 1:  # if_tsresol
+                    resolution = value[0]
+                    if resolution & 0x80:
+                        timestamp_resolution = 2 ** (resolution & 0x7F)
+                    else:
+                        timestamp_resolution = 10 ** resolution
+                option_offset += (length + 3) & ~3
+            interfaces.append((link_type, snaplen, timestamp_resolution))
+        elif block_type == 6:  # Enhanced Packet Block
+            if len(body) < 20:
+                raise ValueError("Truncated PCAPNG enhanced packet block")
+            interface_id, ts_high, ts_low, captured_length, original_length = struct.unpack(
+                byte_order + "IIIII", body[:20]
+            )
+            if interface_id >= len(interfaces):
+                raise ValueError("PCAPNG packet references an unknown interface")
+            link_type, snaplen, timestamp_resolution = interfaces[interface_id]
+            if captured_length > snaplen or captured_length > MAX_CAPTURED_PACKET_SIZE:
+                raise ValueError("PCAPNG packet exceeds configured size limit")
+            if original_length < captured_length:
+                raise ValueError("PCAPNG original length is smaller than captured length")
+            padded_length = (captured_length + 3) & ~3
+            if 20 + padded_length > len(body):
+                raise ValueError("Truncated PCAPNG packet data")
+            if link_type == ETHERNET:
+                raw_timestamp = (ts_high << 32) | ts_low
+                timestamp = raw_timestamp / timestamp_resolution
+                event = _parse_ethernet_ipv4(body[20:20 + captured_length], timestamp)
+                if event is not None:
+                    events.append(event)
+        # Unknown block types are safely ignored after structural validation.
+
+    return events
+
+
 def _parse_pcap_stream(capture):
     """Read one packet at a time so capture bytes are not all held in memory."""
-    global_header = capture.read(GLOBAL_HEADER_SIZE)
+    start = capture.read(4)
+    if start == b"\\x0a\\x0d\\x0d\\x0a":
+        capture.seek(0)
+        return _parse_pcapng_stream(capture)
+    global_header = start + capture.read(GLOBAL_HEADER_SIZE - len(start))
     if len(global_header) < GLOBAL_HEADER_SIZE:
         raise ValueError("PCAP file is shorter than its 24-byte global header")
 
