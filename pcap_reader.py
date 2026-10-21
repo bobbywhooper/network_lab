@@ -23,7 +23,74 @@ PCAP_MAGICS = {
 }
 ETHERNET = 1
 IPV4_ETHERTYPE = 0x0800
+IPV6_ETHERTYPE = 0x86DD
 VLAN_ETHERTYPES = {0x8100, 0x88A8, 0x9100}
+
+
+
+def _parse_ethernet_ipv6(packet, offset, timestamp):
+    """Parse IPv6 packets whose base header directly identifies TCP or UDP."""
+    if len(packet) < offset + 40:
+        raise ValueError("Truncated IPv6 header")
+
+    first_word = struct.unpack("!I", packet[offset:offset + 4])[0]
+    if first_word >> 28 != 6:
+        raise ValueError("Invalid IPv6 header")
+
+    payload_length, next_header = struct.unpack("!H B", packet[offset + 4:offset + 7])
+    payload_start = offset + 40
+    payload_end = payload_start + payload_length
+    if len(packet) < payload_end:
+        raise ValueError("Truncated IPv6 payload")
+
+    # Extension headers (including fragmentation) need separate parsing/reassembly.
+    # Ignore them rather than misinterpreting an extension header as a transport header.
+    if next_header not in (6, 17):
+        return None
+
+    src_ip = str(ipaddress.IPv6Address(packet[offset + 8:offset + 24]))
+    dst_ip = str(ipaddress.IPv6Address(packet[offset + 24:offset + 40]))
+
+    if next_header == 6:
+        if payload_end - payload_start < 20:
+            raise ValueError("Truncated TCP header")
+        src_port, dst_port = struct.unpack("!HH", packet[payload_start:payload_start + 4])
+        tcp_header_length = (packet[payload_start + 12] >> 4) * 4
+        if tcp_header_length < 20 or payload_start + tcp_header_length > payload_end:
+            raise ValueError("Invalid or truncated TCP options")
+        tcp_flags = packet[payload_start + 13]
+        payload_start += tcp_header_length
+        transport = "TCP"
+    else:
+        if payload_end - payload_start < 8:
+            raise ValueError("Truncated UDP header")
+        src_port, dst_port, udp_length = struct.unpack(
+            "!HHH", packet[payload_start:payload_start + 6]
+        )
+        if udp_length < 8 or payload_start + udp_length > payload_end:
+            raise ValueError("Invalid or truncated UDP datagram")
+        tcp_flags = None
+        payload_end = payload_start + udp_length
+        payload_start += 8
+        transport = "UDP"
+
+    return {
+        "time": timestamp,
+        "ip_version": 6,
+        "src_ip": src_ip,
+        "dst_ip": dst_ip,
+        "src_port": src_port,
+        "dst_port": dst_port,
+        "protocol": transport,
+        "payload_length": payload_end - payload_start,
+        "tcp_flags": tcp_flags,
+        "tcp_syn": bool(tcp_flags is not None and tcp_flags & 0x02),
+        "tcp_ack": bool(tcp_flags is not None and tcp_flags & 0x10),
+        "tcp_rst": bool(tcp_flags is not None and tcp_flags & 0x04),
+        "tcp_fin": bool(tcp_flags is not None and tcp_flags & 0x01),
+        "payload_hex": packet[payload_start:payload_end].hex(),
+        "ip_length": 40 + payload_length,
+    }
 
 
 def _parse_ethernet_ipv4(packet, timestamp):
@@ -41,6 +108,8 @@ def _parse_ethernet_ipv4(packet, timestamp):
         ethertype = struct.unpack("!H", packet[offset + 2:offset + 4])[0]
         offset += 4
 
+    if ethertype == IPV6_ETHERTYPE:
+        return _parse_ethernet_ipv6(packet, offset, timestamp)
     if ethertype != IPV4_ETHERTYPE:
         return None
 
@@ -100,6 +169,7 @@ def _parse_ethernet_ipv4(packet, timestamp):
 
     return {
         "time": timestamp,
+        "ip_version": 4,
         "src_ip": src_ip,
         "dst_ip": dst_ip,
         "src_port": src_port,
