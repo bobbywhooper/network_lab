@@ -95,7 +95,9 @@ python pcap_analyzer.py capture.pcap --threshold 5 --port-threshold 10 --window 
 
 Scope and limitations:
 - Supports classic PCAP files with Ethernet link-layer headers, optional VLAN tags, and IPv4 TCP/UDP packets.
-- Does not support PCAPNG, IPv6, IP fragment reassembly, TCP stream reassembly, or application-layer decoding.
+- Does not support PCAPNG, IPv6, IP fragment reassembly, TCP stream reassembly, or general application-layer decoding.
+- Extracts basic DNS header and question metadata from UDP packets on ports 53 and 5353; malformed DNS payloads are counted and skipped rather than aborting the capture report.
+- TCP scan candidates are initial SYN packets without ACK, which reduces reply/continuation noise. UDP packets remain candidates because UDP has no handshake.
 - The analyzer can flag sources contacting many destination IPs (horizontal-scan heuristic) or many destination ports (vertical-scan heuristic). These simple thresholds are only signals, not proof of scanning or malicious activity.
 - Only analyze captures you are authorized to inspect.
 
