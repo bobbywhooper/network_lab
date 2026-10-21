@@ -76,6 +76,29 @@ python dns_packet.py
 
 The current implementation queries `www.example.com` using Cloudflare's public DNS resolver.
 
+
+### `pcap_reader.py` and `pcap_analyzer.py` — Classic PCAP Analysis
+
+The reader uses the Python standard library to extract timestamped metadata from classic PCAP captures containing Ethernet-framed IPv4 TCP or UDP packets.
+
+Run a summary:
+
+```bash
+python pcap_analyzer.py capture.pcap
+```
+
+Flag destination bursts within a five-second window and save JSON:
+
+```bash
+python pcap_analyzer.py capture.pcap --threshold 5 --window 5 --json report.json
+```
+
+Scope and limitations:
+- Supports classic PCAP files with Ethernet link-layer headers, optional VLAN tags, and IPv4 TCP/UDP packets.
+- Does not support PCAPNG, IPv6, IP fragment reassembly, TCP stream reassembly, or application-layer decoding.
+- The destination-count heuristic is only a basic signal; it is not proof of scanning or malicious activity.
+- Only analyze captures you are authorized to inspect.
+
 ### `network_event_analyzer.py` — Network Event Analysis
 
 A small experiment using simulated connection-event data to explore:
