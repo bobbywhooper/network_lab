@@ -35,8 +35,9 @@ def main():
         events = read_pcap(args.capture)
         dns_messages = []
         for event in events:
-            if event["protocol"] == "UDP" and event["src_port"] in (53, 5353) or (
-                event["protocol"] == "UDP" and event["dst_port"] in (53, 5353)
+            if (
+                event["protocol"] == "UDP"
+                and (event["src_port"] in (53, 5353) or event["dst_port"] in (53, 5353))
             ):
                 try:
                     dns = parse_dns_payload(bytes.fromhex(event["payload_hex"]))
@@ -73,15 +74,40 @@ def main():
          "rcode": event["dns"]["rcode"]}
         for event in events if "dns" in event
     ]
+    queried_names = Counter(
+        question["name"].lower()
+        for event in events
+        if "dns" in event and not event["dns"]["is_response"]
+        for question in event["dns"]["questions"]
+    )
+    report["top_dns_queries"] = dict(queried_names.most_common(20))
+    report["dns_response_rcodes"] = dict(Counter(
+        event["dns"]["rcode"]
+        for event in events if "dns" in event and event["dns"]["is_response"]
+    ))
+    report["tcp_flag_counts"] = {
+        "syn": sum(event["tcp_syn"] for event in events if event["protocol"] == "TCP"),
+        "ack": sum(event["tcp_ack"] for event in events if event["protocol"] == "TCP"),
+        "rst": sum(event["tcp_rst"] for event in events if event["protocol"] == "TCP"),
+        "fin": sum(event["tcp_fin"] for event in events if event["protocol"] == "TCP"),
+        "initial_syn_without_ack": sum(
+            event["tcp_syn"] and not event["tcp_ack"]
+            for event in events if event["protocol"] == "TCP"
+        ),
+    }
     report["protocol_counts"] = dict(Counter(event["protocol"] for event in events))
     report["top_destination_ports"] = dict(
         Counter(event["dst_port"] for event in events).most_common(10)
     )
 
-    print(json.dumps(report, indent=2))
+    rendered_report = json.dumps(report, indent=2)
+    print(rendered_report)
     if args.json_file:
-        with open(args.json_file, "w", encoding="utf-8") as output:
-            json.dump(report, output, indent=2)
+        try:
+            with open(args.json_file, "w", encoding="utf-8") as output:
+                output.write(rendered_report + "\\n")
+        except OSError as error:
+            parser.error(f"Could not write JSON report: {error}")
 
 
 if __name__ == "__main__":
