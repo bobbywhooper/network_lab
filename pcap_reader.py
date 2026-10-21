@@ -6,6 +6,7 @@ with IPv4 packets only.
 """
 
 import ipaddress
+import io
 import struct
 
 
@@ -106,18 +107,19 @@ def _parse_ethernet_ipv4(packet, timestamp):
     }
 
 
-def parse_pcap(data):
-    """Parse classic PCAP bytes into packet metadata dictionaries."""
-    if len(data) < GLOBAL_HEADER_SIZE:
+def _parse_pcap_stream(capture):
+    """Read one packet at a time so capture bytes are not all held in memory."""
+    global_header = capture.read(GLOBAL_HEADER_SIZE)
+    if len(global_header) < GLOBAL_HEADER_SIZE:
         raise ValueError("PCAP file is shorter than its 24-byte global header")
 
-    magic = data[:4]
+    magic = global_header[:4]
     if magic not in PCAP_MAGICS:
         raise ValueError("Unsupported PCAP magic or file format")
     byte_order, timestamp_resolution = PCAP_MAGICS[magic]
 
     major, minor, _timezone, _sigfigs, snaplen, network = struct.unpack(
-        byte_order + "HHIIII", data[4:GLOBAL_HEADER_SIZE]
+        byte_order + "HHIIII", global_header[4:]
     )
     if (major, minor) != (2, 4):
         raise ValueError(f"Unsupported PCAP version: {major}.{minor}")
@@ -126,29 +128,28 @@ def parse_pcap(data):
     if network != ETHERNET:
         raise ValueError("Only Ethernet link-layer PCAP files are supported")
 
-    offset = GLOBAL_HEADER_SIZE
     events = []
-
-    while offset < len(data):
-        if len(data) - offset < RECORD_HEADER_SIZE:
+    while True:
+        record_header = capture.read(RECORD_HEADER_SIZE)
+        if not record_header:
+            break
+        if len(record_header) != RECORD_HEADER_SIZE:
             raise ValueError("Truncated PCAP packet record header")
 
         seconds, fraction, captured_length, original_length = struct.unpack(
-            byte_order + "IIII", data[offset:offset + RECORD_HEADER_SIZE]
+            byte_order + "IIII", record_header
         )
-        offset += RECORD_HEADER_SIZE
-
         if fraction >= timestamp_resolution:
             raise ValueError("PCAP timestamp fraction is out of range")
         if captured_length > snaplen or captured_length > MAX_CAPTURED_PACKET_SIZE:
             raise ValueError("PCAP captured packet length exceeds configured limits")
         if original_length < captured_length:
             raise ValueError("PCAP original length is smaller than captured length")
-        if offset + captured_length > len(data):
+
+        packet = capture.read(captured_length)
+        if len(packet) != captured_length:
             raise ValueError("Truncated PCAP packet data")
 
-        packet = data[offset:offset + captured_length]
-        offset += captured_length
         timestamp = seconds + fraction / timestamp_resolution
         event = _parse_ethernet_ipv4(packet, timestamp)
         if event is not None:
@@ -157,7 +158,12 @@ def parse_pcap(data):
     return events
 
 
+def parse_pcap(data):
+    """Parse classic PCAP bytes into packet metadata dictionaries."""
+    return _parse_pcap_stream(io.BytesIO(data))
+
+
 def read_pcap(filename):
-    """Read a classic PCAP file from disk and return supported packet events."""
+    """Read a classic PCAP file without loading the full capture into memory."""
     with open(filename, "rb") as capture:
-        return parse_pcap(capture.read())
+        return _parse_pcap_stream(capture)

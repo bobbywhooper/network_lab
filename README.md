@@ -79,7 +79,7 @@ The current implementation queries `www.example.com` using Cloudflare's public D
 
 ### `pcap_reader.py` and `pcap_analyzer.py` — Classic PCAP Analysis
 
-The reader uses the Python standard library to extract timestamped metadata from classic PCAP captures containing Ethernet-framed IPv4 TCP or UDP packets.
+The reader uses the Python standard library to extract timestamped metadata from classic PCAP captures containing Ethernet-framed IPv4 TCP or UDP packets. It reads packet records incrementally rather than loading the full capture bytes into memory; extracted metadata is still collected for analysis.
 
 Run a summary:
 

@@ -1,7 +1,9 @@
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 
-from pcap_reader import parse_pcap
+from pcap_reader import parse_pcap, read_pcap
 
 
 def make_tcp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=12345, dst_port=80, payload=b"hi"):
@@ -36,6 +38,17 @@ class PcapReaderTests(unittest.TestCase):
         self.assertEqual(events[0]["protocol"], "TCP")
         self.assertEqual(events[0]["payload_length"], 2)
         self.assertEqual(events[0]["time"], 100.25)
+
+    def test_reads_capture_from_disk(self):
+        with tempfile.TemporaryDirectory() as folder:
+            capture_path = Path(folder) / "sample.pcap"
+            capture_path.write_bytes(make_pcap(make_tcp_frame()))
+            self.assertEqual(read_pcap(capture_path)[0]["dst_port"], 80)
+
+    def test_rejects_truncated_record_header(self):
+        data = make_pcap(make_tcp_frame()) + b"\\x01\\x02"
+        with self.assertRaisesRegex(ValueError, "record header"):
+            parse_pcap(data)
 
     def test_rejects_short_global_header(self):
         with self.assertRaisesRegex(ValueError, "global header"):
