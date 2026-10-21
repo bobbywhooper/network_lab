@@ -51,6 +51,14 @@ class AnalyzeEventsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dst_ip"):
             analyze_events([{"src_ip": "10.0.0.1"}])
 
+    def test_threshold_must_be_integer(self):
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            analyze_events([], threshold=1.5)
+
+    def test_rejects_blank_ip(self):
+        with self.assertRaisesRegex(ValueError, "invalid src_ip"):
+            analyze_events([{"src_ip": " ", "dst_ip": "10.0.0.2"}])
+
 
 if __name__ == "__main__":
     unittest.main()
