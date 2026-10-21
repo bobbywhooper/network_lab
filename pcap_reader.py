@@ -81,6 +81,7 @@ def _parse_ethernet_ipv4(packet, timestamp):
         if tcp_header_length < 20 or transport_start + tcp_header_length > ip_payload_end:
             raise ValueError("Invalid or truncated TCP options")
         payload_length = ip_payload_end - transport_start - tcp_header_length
+        tcp_flags = packet[transport_start + 13]
         transport = "TCP"
     elif protocol == 17:  # UDP
         if ip_payload_end - transport_start < 8:
@@ -91,6 +92,7 @@ def _parse_ethernet_ipv4(packet, timestamp):
         if udp_length < 8 or transport_start + udp_length > ip_payload_end:
             raise ValueError("Invalid or truncated UDP datagram")
         payload_length = udp_length - 8
+        tcp_flags = None
         transport = "UDP"
     else:
         return None
@@ -103,6 +105,12 @@ def _parse_ethernet_ipv4(packet, timestamp):
         "dst_port": dst_port,
         "protocol": transport,
         "payload_length": payload_length,
+        "tcp_flags": tcp_flags,
+        "tcp_syn": bool(tcp_flags is not None and tcp_flags & 0x02),
+        "tcp_ack": bool(tcp_flags is not None and tcp_flags & 0x10),
+        "tcp_rst": bool(tcp_flags is not None and tcp_flags & 0x04),
+        "tcp_fin": bool(tcp_flags is not None and tcp_flags & 0x01),
+        "payload": packet[transport_start + (tcp_header_length if transport == "TCP" else 8):transport_start + (tcp_header_length if transport == "TCP" else udp_length)],
         "ip_length": total_length,
     }
 
