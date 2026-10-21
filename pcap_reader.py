@@ -42,8 +42,27 @@ def _parse_ethernet_ipv6(packet, offset, timestamp):
     if len(packet) < payload_end:
         raise ValueError("Truncated IPv6 payload")
 
-    # Extension headers (including fragmentation) need separate parsing/reassembly.
-    # Ignore them rather than misinterpreting an extension header as a transport header.
+    # Walk common IPv6 extension headers without interpreting their bytes as ports.
+    # Fragmented packets are skipped because this reader does not reassemble fragments.
+    extension_count = 0
+    while next_header in (0, 43, 60, 51, 44):
+        extension_count += 1
+        if extension_count > 8:
+            raise ValueError("IPv6 extension-header chain is too long")
+        if next_header == 44:
+            return None
+        if payload_start + 2 > payload_end:
+            raise ValueError("Truncated IPv6 extension header")
+        following_header = packet[payload_start]
+        if next_header == 51:  # Authentication Header length uses 32-bit words.
+            extension_length = (packet[payload_start + 1] + 2) * 4
+        else:  # Hop-by-Hop, Routing, and Destination Options use 8-byte units.
+            extension_length = (packet[payload_start + 1] + 1) * 8
+        if extension_length < 8 or payload_start + extension_length > payload_end:
+            raise ValueError("Invalid or truncated IPv6 extension header")
+        payload_start += extension_length
+        next_header = following_header
+
     if next_header not in (6, 17):
         return None
 
