@@ -171,10 +171,27 @@ def parse_response(packet, expected_transaction_id=None):
         elif record_type == 28 and rdlength == 16:
             answer["value"] = str(ipaddress.IPv6Address(rdata))
         elif record_type == 5:
-            cname, _ = decode_name(packet, end - rdlength)
+            cname, cname_end = decode_name(packet, end - rdlength)
+            if cname_end != end:
+                raise ValueError("Malformed DNS CNAME resource-record data")
             answer["value"] = cname
 
         answers.append(answer)
+
+    def skip_records(count, section_name):
+        nonlocal offset
+        for _ in range(count):
+            _, offset = decode_name(packet, offset)
+            if offset + 10 > len(packet):
+                raise ValueError(f"Truncated DNS {section_name} resource-record header")
+            rdlength = struct.unpack("!H", packet[offset + 8:offset + 10])[0]
+            offset += 10
+            if offset + rdlength > len(packet):
+                raise ValueError(f"Truncated DNS {section_name} resource-record data")
+            offset += rdlength
+
+    skip_records(nscount, "authority")
+    skip_records(arcount, "additional")
 
     return {
         "transaction_id": transaction_id,

@@ -82,10 +82,15 @@ def scan_ports(ip, ports, workers=50, timeout=1):
     Scan multiple ports concurrently.
     """
 
-    if workers < 1:
-        raise ValueError("workers must be at least 1")
-    if timeout <= 0:
-        raise ValueError("timeout must be greater than zero")
+    if not isinstance(workers, int) or isinstance(workers, bool) or workers < 1:
+        raise ValueError("workers must be a positive integer")
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        raise ValueError("timeout must be a positive number")
+    if not isinstance(ports, (list, tuple, set)):
+        raise ValueError("ports must be a list, tuple, or set of port numbers")
+    for port in ports:
+        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            raise ValueError(f"Invalid TCP port: {port}")
 
     results = []
     futures = []
@@ -440,8 +445,8 @@ def parse_ports(port_spec):
     into a sorted list of port numbers.
     """
 
-    if not port_spec or not port_spec.strip():
-        raise ValueError("Port specification cannot be empty")
+    if not isinstance(port_spec, str) or not port_spec.strip():
+        raise ValueError("Port specification must be a non-empty string")
 
     ports = set()
 
