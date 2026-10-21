@@ -56,7 +56,7 @@ class DnsPacketTests(unittest.TestCase):
 
     def test_rejects_truncated_authority_record(self):
         header = struct.pack("!HHHHHH", 1, 0x8180, 0, 0, 1, 0)
-        truncated_record = encode_name("example.com") + struct.pack("!HHIH", 2, 1, 60, 4) + b"\\x01"
+        truncated_record = encode_name("example.com") + struct.pack("!HHIH", 2, 1, 60, 4) + b"\x01"
         with self.assertRaisesRegex(ValueError, "authority resource-record data"):
             parse_response(header + truncated_record, expected_transaction_id=1)
 
