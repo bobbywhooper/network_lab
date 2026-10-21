@@ -36,7 +36,7 @@ def analyze_events(events, threshold=5, window_seconds=None, port_threshold=None
         if not isinstance(event, dict):
             raise ValueError(f"Event at index {index} must be a dictionary")
         missing = {"src_ip", "dst_ip"} - event.keys()
-        if window_seconds is not None:
+        if window_seconds is not None and "time" not in event:
             missing.add("time")
         if missing:
             fields = ", ".join(sorted(missing))
