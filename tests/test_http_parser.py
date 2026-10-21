@@ -37,16 +37,16 @@ class FakeSocket:
 class HttpParserTests(unittest.TestCase):
     def test_rejects_response_with_both_transfer_encoding_and_content_length(self):
         wire = (
-            b"HTTP/1.1 200 OK\\r\\n"
-            b"Transfer-Encoding: chunked\\r\\n"
-            b"Content-Length: 4\\r\\n\\r\\n"
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"Content-Length: 4\r\n\r\n"
         )
         with patch("http_parser.socket.create_connection", return_value=FakeSocket([wire])):
             with self.assertRaisesRegex(ValueError, "both Transfer-Encoding and Content-Length"):
                 http_get("example.com")
 
     def test_rejects_unsupported_transfer_encoding_chain(self):
-        wire = b"HTTP/1.1 200 OK\\r\\nTransfer-Encoding: gzip, chunked\\r\\n\\r\\n"
+        wire = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n"
         with patch("http_parser.socket.create_connection", return_value=FakeSocket([wire])):
             with self.assertRaisesRegex(ValueError, "Only the chunked"):
                 http_get("example.com")
