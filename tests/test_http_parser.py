@@ -44,7 +44,7 @@ class HttpParserTests(unittest.TestCase):
 
     def test_rejects_invalid_header_name(self):
         with self.assertRaises(ValueError):
-            parse_headers(b"HTTP/1.1 200 OK\\r\\nBad Name: value")
+            parse_headers(b"HTTP/1.1 200 OK\r\nBad Name: value")
 
     def test_parse_url_rejects_invalid_port(self):
         with self.assertRaises(ValueError):
