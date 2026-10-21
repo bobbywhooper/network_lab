@@ -29,6 +29,19 @@ def make_udp_frame(src="10.0.0.1", dst="10.0.0.2", src_port=53000, dst_port=53, 
     return ethernet + ip_header + udp
 
 
+def make_ipv6_frame(src="2001:db8::1", dst="2001:db8::2", next_header=6, payload=None):
+    ethernet = bytes.fromhex("00112233445566778899aabb86dd")
+    if payload is None:
+        payload = struct.pack("!HHIIHHHH", 12345, 443, 1, 0, (5 << 12) | 0x02, 4096, 0, 0)
+    ipv6_header = struct.pack(
+        "!IHBB16s16s",
+        (6 << 28), len(payload), next_header, 64,
+        __import__("ipaddress").IPv6Address(src).packed,
+        __import__("ipaddress").IPv6Address(dst).packed,
+    )
+    return ethernet + ipv6_header + payload
+
+
 def make_pcap(packet, seconds=100, fraction=250000):
     global_header = (
         b"\xd4\xc3\xb2\xa1"
@@ -52,6 +65,18 @@ class PcapReaderTests(unittest.TestCase):
         self.assertEqual(events[0]["payload_hex"], b"hi".hex())
         self.assertEqual(events[0]["payload_length"], 2)
         self.assertEqual(events[0]["time"], 100.25)
+
+    def test_parses_ipv6_tcp_metadata(self):
+        events = parse_pcap(make_pcap(make_ipv6_frame()))
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["ip_version"], 6)
+        self.assertEqual(events[0]["src_ip"], "2001:db8::1")
+        self.assertEqual(events[0]["dst_port"], 443)
+        self.assertTrue(events[0]["tcp_syn"])
+
+    def test_ignores_ipv6_extension_headers_without_misparsing(self):
+        events = parse_pcap(make_pcap(make_ipv6_frame(next_header=44, payload=bytes(8))))
+        self.assertEqual(events, [])
 
     def test_parses_udp_metadata(self):
         events = parse_pcap(make_pcap(make_udp_frame(payload=b"\x01\x02")))
