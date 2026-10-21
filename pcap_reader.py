@@ -63,8 +63,9 @@ def _parse_ethernet_ipv4(packet, timestamp):
 
     fragment_field = struct.unpack("!H", packet[offset + 6:offset + 8])[0]
     fragment_offset = fragment_field & 0x1FFF
-    if fragment_offset:
-        # Non-initial fragments do not begin with a TCP/UDP header.
+    more_fragments = bool(fragment_field & 0x2000)
+    if fragment_offset or more_fragments:
+        # Without reassembly, transport metadata and payload lengths are incomplete.
         return None
 
     protocol = packet[offset + 9]
