@@ -5,13 +5,14 @@ import json
 from collections import Counter
 
 from network_event_analyzer import analyze_events
+from tcp_scan_detector import analyze_tcp_connections
 from pcap_reader import read_pcap
 from dns_payload import parse_dns_payload
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Summarize TCP/UDP traffic from a classic Ethernet PCAP"
+        description="Analyze TCP/UDP traffic from Ethernet PCAP or PCAPNG captures"
     )
     parser.add_argument("capture", help="Path to a classic .pcap file")
     parser.add_argument("--threshold", type=int, default=5,
@@ -20,6 +21,8 @@ def main():
                         help="Optional sliding time window in seconds")
     parser.add_argument("--port-threshold", type=int,
                         help="Flag sources contacting this many unique destination ports")
+    parser.add_argument("--tcp-response-window", type=float, default=3.0,
+                        help="Seconds allowed for a TCP SYN reply (default: 3)")
     parser.add_argument("--json", dest="json_file",
                         help="Optional path to save the report as JSON")
     args = parser.parse_args()
@@ -30,6 +33,8 @@ def main():
         parser.error("--window must be greater than zero")
     if args.port_threshold is not None and args.port_threshold < 1:
         parser.error("--port-threshold must be at least 1")
+    if args.tcp_response_window <= 0:
+        parser.error("--tcp-response-window must be greater than zero")
 
     try:
         events = read_pcap(args.capture)
@@ -60,12 +65,16 @@ def main():
             window_seconds=args.window,
             port_threshold=args.port_threshold,
         )
+        tcp_analysis = analyze_tcp_connections(
+            events, response_window=args.tcp_response_window
+        )
     except (OSError, ValueError) as error:
         parser.error(str(error))
 
     report["capture"] = args.capture
     report["packet_count"] = len(events)
     report["scan_candidate_count"] = len(scan_events)
+    report["tcp_connection_analysis"] = tcp_analysis
     report["dns_message_count"] = len(dns_messages)
     report["dns_parse_error_count"] = sum("dns_parse_error" in event for event in events)
     report["dns_questions"] = [
