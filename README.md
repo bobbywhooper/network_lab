@@ -119,7 +119,7 @@ Run the unit tests from the repository root with:
 python -m unittest discover -s tests -v
 ```
 
-The tests cover DNS packet encoding/parsing, HTTP parsing and framing, network-event analysis, and port-specification validation. They do not require internet access.
+The tests cover DNS packet encoding/parsing, HTTP parsing and framing, network-event analysis, TCP SYN response correlation, PCAP/PCAPNG parsing, and port-specification validation. They do not require internet access.
 
 ## Requirements
 
