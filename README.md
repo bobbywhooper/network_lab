@@ -77,9 +77,9 @@ python dns_packet.py
 The current implementation queries `www.example.com` using Cloudflare's public DNS resolver.
 
 
-### `pcap_reader.py` and `pcap_analyzer.py` — Classic PCAP Analysis
+### `pcap_reader.py` and `pcap_analyzer.py` — PCAP Analysis
 
-The reader uses the Python standard library to extract timestamped metadata from classic PCAP captures containing Ethernet-framed IPv4 TCP or UDP packets. It reads packet records incrementally rather than loading the full capture bytes into memory; extracted metadata is still collected for analysis.
+The reader uses the Python standard library to extract timestamped metadata from classic PCAP and single-section PCAPNG captures containing Ethernet-framed IPv4 or IPv6 TCP/UDP packets. It reads packet records incrementally rather than loading the full capture bytes into memory; extracted metadata is still collected for analysis.
 
 Run a summary:
 
@@ -94,8 +94,8 @@ python pcap_analyzer.py capture.pcap --threshold 5 --port-threshold 10 --window 
 ```
 
 Scope and limitations:
-- Supports classic PCAP files with Ethernet link-layer headers, optional VLAN tags, and IPv4 or basic IPv6 TCP/UDP packets.
-- Does not support PCAPNG, IP fragment reassembly, TCP stream reassembly, or general application-layer decoding. It parses common IPv6 Hop-by-Hop, Routing, Destination Options, and Authentication extension headers; fragmented IPv6 packets are skipped.
+- Supports classic PCAP and single-section PCAPNG files with Ethernet link-layer headers, optional VLAN tags, and IPv4 or IPv6 TCP/UDP packets.
+- Does not support multiple PCAPNG sections, IP fragment reassembly, TCP stream reassembly, or general application-layer decoding. It parses common IPv6 Hop-by-Hop, Routing, Destination Options, and Authentication extension headers; fragmented IPv4/IPv6 packets are skipped.
 - Extracts basic DNS header and question metadata from UDP packets on ports 53 and 5353; reports common queried names and response codes. Malformed DNS payloads are counted and skipped rather than aborting the capture report.
 - Reports TCP SYN/ACK/RST/FIN flag counts and filters TCP scan candidates to initial SYN packets without ACK.
 - TCP scan candidates are initial SYN packets without ACK, which reduces reply/continuation noise. UDP packets remain candidates because UDP has no handshake.
