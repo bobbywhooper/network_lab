@@ -313,7 +313,7 @@ def _parse_pcapng_stream(capture):
 def _parse_pcap_stream(capture):
     """Read one packet at a time so capture bytes are not all held in memory."""
     start = capture.read(4)
-    if start == b"\\x0a\\x0d\\x0d\\x0a":
+    if start == bytes.fromhex("0a0d0d0a"):
         capture.seek(0)
         return _parse_pcapng_stream(capture)
     global_header = start + capture.read(GLOBAL_HEADER_SIZE - len(start))
