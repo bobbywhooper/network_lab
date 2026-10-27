@@ -1,7 +1,8 @@
-"""Read classic PCAP files and extract basic Ethernet IP TCP/UDP metadata.
+"""Read PCAP/PCAPNG files and extract Ethernet IP TCP/UDP metadata.
 
-This standard-library reader supports IPv4 and basic IPv6 packets. It does not
-reassemble IP fragments, parse IPv6 extension headers, or reassemble TCP streams.
+This standard-library reader supports classic PCAP and single-section PCAPNG,
+IPv4 and IPv6, and common IPv6 extension headers. It does not reassemble IP
+fragments or TCP streams.
 """
 
 import ipaddress
@@ -230,6 +231,10 @@ def _parse_pcapng_stream(capture):
     if struct.unpack(byte_order + "I", remainder[-4:])[0] != block_length:
         raise ValueError("PCAPNG block lengths do not match")
 
+    major, minor = struct.unpack(byte_order + "HH", remainder[:4])
+    if (major, minor) != (1, 0):
+        raise ValueError(f"Unsupported PCAPNG version: {major}.{minor}")
+
     interfaces = []
     events = []
     timestamp = 0.0
@@ -252,17 +257,9 @@ def _parse_pcapng_stream(capture):
         body = body_and_trailer[:-4]
 
         if block_type == 0x0A0D0D0A:
-            # New section: read its byte-order magic from the block body.
-            if len(body) < 16:
-                raise ValueError("Truncated PCAPNG section header")
-            bom = body[4:8]
-            if bom == b"\\x4d\\x3c\\x2b\\x1a":
-                byte_order = "<"
-            elif bom == b"\\x1a\\x2b\\x3c\\x4d":
-                byte_order = ">"
-            else:
-                raise ValueError("Invalid PCAPNG byte-order magic")
-            interfaces = []
+            # A second section can change byte order and interface numbering.
+            # Reject it explicitly rather than parsing subsequent blocks wrongly.
+            raise ValueError("Multiple PCAPNG sections are not supported")
         elif block_type == 1:  # Interface Description Block
             if len(body) < 8:
                 raise ValueError("Truncated PCAPNG interface block")
@@ -369,11 +366,11 @@ def _parse_pcap_stream(capture):
 
 
 def parse_pcap(data):
-    """Parse classic PCAP bytes into packet metadata dictionaries."""
+    """Parse classic PCAP or supported PCAPNG bytes into packet metadata."""
     return _parse_pcap_stream(io.BytesIO(data))
 
 
 def read_pcap(filename):
-    """Read a classic PCAP file without loading the full capture into memory."""
+    """Read PCAP/PCAPNG records incrementally from disk."""
     with open(filename, "rb") as capture:
         return _parse_pcap_stream(capture)
