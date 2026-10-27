@@ -211,7 +211,7 @@ def _parse_ethernet_ipv4(packet, timestamp):
 def _parse_pcapng_stream(capture):
     """Parse basic PCAPNG Section Header, Interface, and Enhanced Packet blocks."""
     first = capture.read(12)
-    if len(first) < 12 or first[:4] != b"\\x0a\\x0d\\x0d\\x0a":
+    if len(first) < 12 or first[:4] != bytes.fromhex("0a0d0d0a"):
         raise ValueError("Invalid PCAPNG section header")
 
     byte_order_magic = first[8:12]
