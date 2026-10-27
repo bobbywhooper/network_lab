@@ -54,7 +54,53 @@ def make_pcap(packet, seconds=100, fraction=250000):
     return global_header + record + packet
 
 
+def make_pcapng(packet, seconds=100, microseconds=250000):
+    def block(block_type, body):
+        padding = bytes((-len(body)) % 4)
+        body += padding
+        total_length = 12 + len(body)
+        return (
+            struct.pack("<II", block_type, total_length)
+            + body
+            + struct.pack("<I", total_length)
+        )
+
+    section = struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1)
+    interface = struct.pack("<HHI", 1, 0, 65535)
+    packet_block = struct.pack(
+        "<IIIII", 0, seconds, microseconds, len(packet), len(packet)
+    ) + packet
+    return (
+        block(0x0A0D0D0A, section)
+        + block(1, interface)
+        + block(6, packet_block)
+    )
+
+
 class PcapReaderTests(unittest.TestCase):
+    def test_parses_pcapng_enhanced_packet(self):
+        events = parse_pcap(make_pcapng(make_tcp_frame()))
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["src_ip"], "10.0.0.1")
+        self.assertEqual(events[0]["dst_port"], 80)
+        self.assertEqual(events[0]["time"], 100.25)
+
+    def test_rejects_truncated_pcapng_section(self):
+        with self.assertRaisesRegex(ValueError, "section header"):
+            parse_pcap(b"\x0a\x0d\x0d\x0a")
+
+    def test_rejects_invalid_pcapng_byte_order_magic(self):
+        data = bytearray(make_pcapng(make_tcp_frame()))
+        data[8:12] = b"\x00\x00\x00\x00"
+        with self.assertRaisesRegex(ValueError, "byte-order magic"):
+            parse_pcap(bytes(data))
+
+    def test_rejects_pcapng_block_length_mismatch(self):
+        data = bytearray(make_pcapng(make_tcp_frame()))
+        data[24:28] = struct.pack("<I", 32)
+        with self.assertRaisesRegex(ValueError, "block lengths"):
+            parse_pcap(bytes(data))
+
     def test_parses_tcp_metadata(self):
         events = parse_pcap(make_pcap(make_tcp_frame()))
         self.assertEqual(len(events), 1)
