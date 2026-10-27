@@ -68,7 +68,8 @@ def make_pcapng(packet, seconds=100, microseconds=250000):
     section = struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1)
     interface = struct.pack("<HHI", 1, 0, 65535)
     packet_block = struct.pack(
-        "<IIIII", 0, seconds, microseconds, len(packet), len(packet)
+        "<IIIII", 0, 0, seconds * 1_000_000 + microseconds,
+        len(packet), len(packet)
     ) + packet
     return (
         block(0x0A0D0D0A, section)
