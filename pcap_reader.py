@@ -215,9 +215,9 @@ def _parse_pcapng_stream(capture):
         raise ValueError("Invalid PCAPNG section header")
 
     byte_order_magic = first[8:12]
-    if byte_order_magic == b"\\x4d\\x3c\\x2b\\x1a":
+    if byte_order_magic == bytes.fromhex("4d3c2b1a"):
         byte_order = "<"
-    elif byte_order_magic == b"\\x1a\\x2b\\x3c\\x4d":
+    elif byte_order_magic == bytes.fromhex("1a2b3c4d"):
         byte_order = ">"
     else:
         raise ValueError("Invalid PCAPNG byte-order magic")
